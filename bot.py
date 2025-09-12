@@ -4,7 +4,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 from telegram.ext import filters
 import sqlite3
 import os
-from flask import Flask  # Импортируем Flask
 
 # Настройка логирования
 logging.basicConfig(
@@ -13,11 +12,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Константы (теперь через переменные окружения)
-TOKEN = os.environ.get("TOKEN")  # Берем токен из переменных окружения
-GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")  # Можно тоже через переменные
-
-# Создаем Flask приложение
-app = Flask(__name__)
+TOKEN = os.environ.get("TOKEN")
+GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")
 
 # Инициализация базы данных
 def init_db():
@@ -135,8 +131,8 @@ async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Ошибка при обработке обновления {update}: {context.error}")
 
-# Функция для запуска бота
-def run_bot():
+# Основная функция
+def main() -> None:
     # Инициализируем базу данных
     init_db()
 
@@ -171,11 +167,5 @@ def run_bot():
     print("Бот запущен и работает...")
     application.run_polling()
 
-# Маршрут для Flask (проверка работоспособности)
-@app.route('/')
-def home():
-    return "Бот работает! :)"
-
-# Запуск приложения
 if __name__ == '__main__':
-    run_bot()
+    main()
