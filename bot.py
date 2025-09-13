@@ -12,9 +12,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Константы (теперь через переменные окружения)
-TOKEN = os.environ.get("8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak
+TOKEN = ("8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak
 ")
-GROUP_CHAT_ID = os.environ.get("-1003031407522")
+GROUP_CHAT_ID = ("-1003031407522")
 
 # Инициализация базы данных
 def init_db():
@@ -155,34 +155,4 @@ def main() -> None:
     application.run_polling()
 
 if __name__ == '__main__':
-
-
-
-
-    
-# Создаем FastAPI приложение для healthcheck
-app = FastAPI()
-
-@app.get("/health")
-def health_check():
-    return {"status": "OK"}
-
-def run_fastapi():
-    """Запуск FastAPI сервера"""
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
-def main():
-    """Основная функция запуска"""
-    # Запускаем FastAPI в отдельном потоке
-    fastapi_thread = threading.Thread(target=run_fastapi, daemon=True)
-    fastapi_thread.start()
-    
-    # Запускаем вашего бота (ваш существующий код)
-    application = Application.builder().token("8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak
-").build()
-    application.add_handler(CommandHandler("start", start))
-    application.run_polling()
-
-if __name__ == "__main__":
-    main()
+  main()
