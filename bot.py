@@ -12,8 +12,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Константы (теперь через переменные окружения)
-TOKEN = os.environ.get("TOKEN")
-GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")
+TOKEN = os.environ.get("8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak
+")
+GROUP_CHAT_ID = os.environ.get("-1003031407522")
 
 # Инициализация базы данных
 def init_db():
@@ -155,6 +156,10 @@ def main() -> None:
 
 if __name__ == '__main__':
 
+
+
+
+    
 # Создаем FastAPI приложение для healthcheck
 app = FastAPI()
 
@@ -174,7 +179,8 @@ def main():
     fastapi_thread.start()
     
     # Запускаем вашего бота (ваш существующий код)
-    application = Application.builder().token("YOUR_BOT_TOKEN").build()
+    application = Application.builder().token("8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak
+").build()
     application.add_handler(CommandHandler("start", start))
     application.run_polling()
 
