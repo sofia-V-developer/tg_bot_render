@@ -1,9 +1,8 @@
 import logging
 import sqlite3
-import threading
 import os
-from flask import Flask
-from telegram import Update
+from flask import Flask, request
+from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 # Настройка логирования
@@ -16,17 +15,11 @@ logger = logging.getLogger(__name__)
 # Константы (используем переменные окружения для безопасности)
 TOKEN = os.environ.get("BOT_TOKEN", "8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak")
 GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
+WEBHOOK_URL = f"https://{RENDER_EXTERNAL_HOSTNAME}/webhook"
 
-# Создаем Flask приложение для поддержания активности
+# Создаем Flask приложение
 app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Бот работает и готов к приему сообщений!"
-
-@app.route('/health')
-def health():
-    return "OK", 200
 
 # Инициализация базы данных
 def init_db():
@@ -138,52 +131,62 @@ async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Ошибка при обработке обновления {update}: {context.error}")
 
-# Функция для запуска бота
-def run_bot():
-    # Инициализируем базу данных
-    init_db()
-    
-    # Создаем Application
-    application = Application.builder().token(TOKEN).build()
-    
-    # Обработчик команды /start
-    application.add_handler(CommandHandler("start", start))
-    
-    # Обработчик текстовых сообщений от пользователей
-    application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND & ~filters.ChatType.GROUPS,
-        forward_to_group
-    ))
-    
-    # Обработчик медиа-сообщений от пользователей
-    application.add_handler(MessageHandler(
-        filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.AUDIO,
-        forward_to_group
-    ))
-    
-    # Обработчик ответов в группе (все сообщения в группах)
-    application.add_handler(MessageHandler(
-        filters.TEXT & filters.ChatType.GROUPS,
-        handle_group_reply
-    ))
-    
-    # Обработчик ошибок
-    application.add_error_handler(error_handler)
-    
-    # Запускаем бота
-    print("Бот запущен и работает...")
-    application.run_polling()
+# Создаем Application
+application = Application.builder().token(TOKEN).build()
 
-# Запуск в отдельном потоке
-def start_bot():
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
+# Добавляем обработчики
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(
+    filters.TEXT & ~filters.COMMAND & ~filters.ChatType.GROUPS,
+    forward_to_group
+))
+application.add_handler(MessageHandler(
+    filters.PHOTO | filters.Document.ALL | filters.VIDEO | filters.AUDIO,
+    forward_to_group
+))
+application.add_handler(MessageHandler(
+    filters.TEXT & filters.ChatType.GROUPS,
+    handle_group_reply
+))
+application.add_error_handler(error_handler)
+
+# Инициализируем базу данных
+init_db()
+
+@app.route('/')
+def home():
+    return "Бот работает и готов к приему сообщений!"
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    """Обработчик вебхука от Telegram"""
+    if request.method == "POST":
+        update = Update.de_json(request.get_json(), application.bot)
+        await application.process_update(update)
+    return "ok", 200
+
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    """Установка вебхука (вызвать один раз вручную после деплоя)"""
+    if not RENDER_EXTERNAL_HOSTNAME:
+        return "RENDER_EXTERNAL_HOSTNAME не установлен", 500
+    
+    try:
+        # Создаем бота для установки вебхука
+        bot = Bot(token=TOKEN)
+        success = bot.set_webhook(WEBHOOK_URL)
+        if success:
+            return f"Webhook установлен на {WEBHOOK_URL}", 200
+        else:
+            return "Ошибка установки webhook", 500
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500
 
 if __name__ == '__main__':
-    # Запускаем бота в отдельном потоке
-    start_bot()
-    
-    # Запускаем Flask приложение для поддержания активности
+    # Запускаем Flask приложение
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
