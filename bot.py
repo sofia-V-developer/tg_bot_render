@@ -171,14 +171,20 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
-    const express = require('express')
-const app = express()
-const port = process.env.PORT || 4000
 
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+
+
+from flask import Flask
+import os
+
+app = Flask(__name__)
+port = int(os.environ.get('PORT', 4000))
+
+@app.route('/')
+def hello_world():
+    return 'Hello World!'
+
+if __name__ == '__main__':
+    print(f'Example app listening on port {port}')
+    app.run(host='0.0.0.0', port=port)
