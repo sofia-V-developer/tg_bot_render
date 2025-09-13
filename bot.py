@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import os
+import asyncio
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
@@ -12,10 +13,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Константы (используем переменные окружения для безопасности)
+# Константы
 TOKEN = os.environ.get("BOT_TOKEN", "8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak")
 GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'tg-bot-render-o4ef.onrender.com')
 WEBHOOK_URL = f"https://{RENDER_EXTERNAL_HOSTNAME}/webhook"
 
 # Создаем Flask приложение
@@ -30,7 +31,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Сохранение связи между сообщениями
 def save_message_link(user_id, user_message_id, group_message_id):
     conn = sqlite3.connect('bot_data.db')
     c = conn.cursor()
@@ -39,7 +39,6 @@ def save_message_link(user_id, user_message_id, group_message_id):
     conn.commit()
     conn.close()
 
-# Получение user_id и message_id по group_message_id
 def get_user_message_data(group_message_id):
     conn = sqlite3.connect('bot_data.db')
     c = conn.cursor()
@@ -49,7 +48,6 @@ def get_user_message_data(group_message_id):
     conn.close()
     return result
 
-# Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     welcome_text = """Привет! Рад тебя здесь увидеть🤠👋
@@ -84,50 +82,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.reply_html(welcome_text)
 
-# Пересылка сообщений от пользователя в группу
 async def forward_to_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_info = f"@{user.username}" if user.username else f"{user.first_name} {user.last_name or ''} (ID: {user.id})"
     caption = f"📨 Сообщение от: {user_info}\n\n"
     
     try:
-        # Отправляем заголовок
         await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=caption)
-        # Пересылаем сообщение
         forwarded_msg = await update.message.forward(chat_id=GROUP_CHAT_ID)
-        # Сохраняем связь между сообщениями
         save_message_link(user.id, update.message.message_id, forwarded_msg.message_id)
-        # Подтверждение пользователю
         await update.message.reply_text("✅ ваше сообщение отправлено! пожалуйста, ожидайте ответа от автора🙂‍↕️")
     except Exception as e:
         logger.error(f"Ошибка при пересылке: {e}")
         await update.message.reply_text("😔 Что-то пошло не так. Попробуйте позже.")
 
-# Обработка ответов в группе
 async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Проверяем, что сообщение из нужной группы
     if str(update.effective_chat.id) != str(GROUP_CHAT_ID):
         return
     
-    # Проверяем, что это ответ на сообщение
     if not update.message.reply_to_message:
         return
         
     replied_message_id = update.message.reply_to_message.message_id
     
-    # Ищем данные пользователя
     user_data = get_user_message_data(replied_message_id)
     if user_data:
         user_id, original_message_id = user_data
-        # Отправляем ответ пользователю
         reply_text = f"✨ответ от автора:\n\n{update.message.text}"
         await context.bot.send_message(chat_id=user_id, text=reply_text)
-        # Уведомляем в группе об успешной отправке
         await update.message.reply_text("✅ Ответ отправлен читателю!")
     else:
         await update.message.reply_text("❌ Не удалось найти читателя для ответа.")
 
-# Обработка ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Ошибка при обработке обновления {update}: {context.error}")
 
@@ -162,31 +148,41 @@ def health():
     return "OK", 200
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     """Обработчик вебхука от Telegram"""
     if request.method == "POST":
         update = Update.de_json(request.get_json(), application.bot)
-        await application.process_update(update)
+        asyncio.run(application.process_update(update))
     return "ok", 200
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    """Установка вебхука (вызвать один раз вручную после деплоя)"""
-    if not RENDER_EXTERNAL_HOSTNAME:
-        return "RENDER_EXTERNAL_HOSTNAME не установлен", 500
+    """Установка вебхука"""
+    async def _set_webhook():
+        try:
+            bot = Bot(token=TOKEN)
+            success = await bot.set_webhook(WEBHOOK_URL)
+            if success:
+                return f"Webhook установлен на {WEBHOOK_URL}", 200
+            else:
+                return "Ошибка установки webhook", 500
+        except Exception as e:
+            return f"Ошибка: {str(e)}", 500
     
-    try:
-        # Создаем бота для установки вебхука
-        bot = Bot(token=TOKEN)
-        success = bot.set_webhook(WEBHOOK_URL)
-        if success:
-            return f"Webhook установлен на {WEBHOOK_URL}", 200
-        else:
-            return "Ошибка установки webhook", 500
-    except Exception as e:
-        return f"Ошибка: {str(e)}", 500
+    return asyncio.run(_set_webhook())
 
 if __name__ == '__main__':
+    # Автоматически устанавливаем вебхук при запуске
+    async def setup_webhook():
+        try:
+            bot = Bot(token=TOKEN)
+            await bot.set_webhook(WEBHOOK_URL)
+            logger.info(f"Webhook установлен: {WEBHOOK_URL}")
+        except Exception as e:
+            logger.error(f"Ошибка установки webhook: {e}")
+    
+    asyncio.run(setup_webhook())
+    
     # Запускаем Flask приложение
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
