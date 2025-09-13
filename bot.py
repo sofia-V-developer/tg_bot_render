@@ -154,4 +154,29 @@ def main() -> None:
     application.run_polling()
 
 if __name__ == '__main__':
+
+# Создаем FastAPI приложение для healthcheck
+app = FastAPI()
+
+@app.get("/health")
+def health_check():
+    return {"status": "OK"}
+
+def run_fastapi():
+    """Запуск FastAPI сервера"""
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+def main():
+    """Основная функция запуска"""
+    # Запускаем FastAPI в отдельном потоке
+    fastapi_thread = threading.Thread(target=run_fastapi, daemon=True)
+    fastapi_thread.start()
+    
+    # Запускаем вашего бота (ваш существующий код)
+    application = Application.builder().token("YOUR_BOT_TOKEN").build()
+    application.add_handler(CommandHandler("start", start))
+    application.run_polling()
+
+if __name__ == "__main__":
     main()
