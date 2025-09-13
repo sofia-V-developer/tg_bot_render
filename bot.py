@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import threading
+import os
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
@@ -12,9 +13,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Константы (ЗАМЕНИТЕ НА СВОИ)
-TOKEN = "8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak"
-GROUP_CHAT_ID = "-1003031407522"
+# Константы (используем переменные окружения для безопасности)
+TOKEN = os.environ.get("BOT_TOKEN", "8369190866:AAE1G2UHoA1lErQvE4iw7L0s21Alkc5Otak")
+GROUP_CHAT_ID = os.environ.get("GROUP_CHAT_ID", "-1003031407522")
 
 # Создаем Flask приложение для поддержания активности
 app = Flask(__name__)
@@ -22,6 +23,10 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "Бот работает и готов к приему сообщений!"
+
+@app.route('/health')
+def health():
+    return "OK", 200
 
 # Инициализация базы данных
 def init_db():
@@ -170,12 +175,14 @@ def run_bot():
     application.run_polling()
 
 # Запуск в отдельном потоке
-bot_thread = threading.Thread(target=run_bot)
-bot_thread.daemon = True
+def start_bot():
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
 
 if __name__ == '__main__':
     # Запускаем бота в отдельном потоке
-    bot_thread.start()
+    start_bot()
     
     # Запускаем Flask приложение для поддержания активности
     port = int(os.environ.get('PORT', 5000))
